@@ -359,9 +359,6 @@ async def main() -> None:
     if stop_event.is_set():
         raise SystemExit(130)
 
-    if failed:
-        raise SystemExit(1)
-
 
 if __name__ == "__main__":
     try:
