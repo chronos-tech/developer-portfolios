@@ -1,18 +1,29 @@
-
 import asyncio
+import io
 import json
 import logging
+import os
 import re
 import signal
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from PIL import Image
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 
 # ============================================================
 # CONFIG
 # ============================================================
+
+def env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        return default
+
+    return value.strip().lower() in ("1", "true", "yes", "y", "on")
+
 
 BASE_DIR = Path(__file__).resolve().parent
 FEED_FILE = BASE_DIR / "feed.json"
@@ -30,9 +41,17 @@ WAIT_AFTER_LOAD_SECONDS = 2
 NAVIGATION_TIMEOUT_MS = 45_000
 SCREENSHOT_TIMEOUT_MS = 30_000
 
+# Controlled by workflow input / env var SKIP_EXISTING (default: true)
 # True  = skip if a non-empty screenshot already exists
 # False = recapture and overwrite existing screenshots
-SKIP_EXISTING = True
+SKIP_EXISTING = env_bool("SKIP_EXISTING", True)
+
+# Extra passes for entries that ended as failed/skipped
+RETRY_ROUNDS = int(os.getenv("RETRY_ROUNDS", "1"))
+
+# All screenshots are stored as WebP
+WEBP_QUALITY = 85
+EXTENSION = ".webp"
 
 
 # ============================================================
@@ -65,8 +84,12 @@ def make_filename(name: str, url: str) -> str:
 
     return (
         f"{safe_filename(name) or 'unnamed'}-"
-        f"{safe_filename(url_part) or 'website'}.png"
+        f"{safe_filename(url_part) or 'website'}{EXTENSION}"
     )
+
+
+def has_file(path: Path) -> bool:
+    return path.is_file() and path.stat().st_size > 0
 
 
 def write_manifest(results: list) -> None:
@@ -84,6 +107,55 @@ def write_manifest(results: list) -> None:
 def set_result(results: list, index: int, result: dict) -> None:
     results[index - 1] = result
     write_manifest(results)
+
+
+def save_webp(image: Image.Image, dest: Path) -> None:
+    """Save a PIL image as WebP atomically (temp file, then rename)."""
+    temp_path = dest.with_name(dest.name + ".tmp")
+
+    image.convert("RGB").save(
+        temp_path,
+        format="WEBP",
+        quality=WEBP_QUALITY,
+        method=6,
+    )
+
+    temp_path.replace(dest)
+
+
+def save_png_bytes_as_webp(png_bytes: bytes, dest: Path) -> None:
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        save_webp(image, dest)
+
+
+def migrate_png_to_webp() -> None:
+    """Convert every existing PNG in the output dir to WebP, then delete the PNG."""
+    converted = removed = failed = 0
+
+    for png_path in sorted(OUTPUT_DIR.glob("*.png")):
+        webp_path = png_path.with_suffix(EXTENSION)
+
+        try:
+            if not has_file(webp_path):
+                with Image.open(png_path) as image:
+                    save_webp(image, webp_path)
+                converted += 1
+
+            png_path.unlink()
+            removed += 1
+
+        except Exception as exc:
+            failed += 1
+            logging.warning(
+                "PNG migration failed for %s: %s",
+                png_path.name, exc,
+            )
+
+    if converted or removed or failed:
+        logging.info(
+            "PNG migration: converted=%s removed=%s failed=%s",
+            converted, removed, failed,
+        )
 
 
 # ============================================================
@@ -123,13 +195,9 @@ async def capture(
         logging.warning("[%s/%s] Invalid URL: %r", index, total, url)
         return
 
-    # Skip existing non-empty screenshots without opening a browser.
-    if (
-        skip_existing
-        and output_path.is_file()
-        and output_path.stat().st_size > 0
-    ):
-        result["status"] = "skipped"
+    # Existing non-empty screenshot: nothing to do, mark as success.
+    if skip_existing and has_file(output_path):
+        result.update(status="success", error=None)
 
         async with lock:
             set_result(results, index, result)
@@ -174,12 +242,18 @@ async def capture(
                 WAIT_AFTER_LOAD_SECONDS * 1000
             )
 
-            await page.screenshot(
-                path=str(output_path),
+            png_bytes = await page.screenshot(
                 type="png",
                 full_page=False,
                 animations="disabled",
                 timeout=SCREENSHOT_TIMEOUT_MS,
+            )
+
+            # Convert to WebP off the event loop (CPU-bound).
+            await asyncio.to_thread(
+                save_png_bytes_as_webp,
+                png_bytes,
+                output_path,
             )
 
             result.update(status="success", error=None)
@@ -221,6 +295,76 @@ async def capture(
                     set_result(results, index, result)
 
 
+async def run_batch(
+    browser,
+    indices: list,
+    feed: list,
+    filenames: list,
+    results: list,
+    lock: asyncio.Lock,
+    semaphore: asyncio.Semaphore,
+    stop_event: asyncio.Event,
+    skip_existing: bool,
+) -> None:
+    total = len(feed)
+
+    tasks = [
+        asyncio.create_task(
+            capture(
+                browser=browser,
+                semaphore=semaphore,
+                item=feed[index - 1] if isinstance(feed[index - 1], dict) else {},
+                index=index,
+                total=total,
+                filename=filenames[index - 1],
+                results=results,
+                lock=lock,
+                skip_existing=skip_existing,
+            )
+        )
+        for index in indices
+    ]
+
+    stop_waiter = asyncio.create_task(stop_event.wait())
+    all_tasks = asyncio.gather(*tasks, return_exceptions=True)
+
+    try:
+        done, _ = await asyncio.wait(
+            [all_tasks, stop_waiter],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if stop_waiter in done and stop_event.is_set():
+            logging.warning(
+                "Stop requested; cancelling unfinished captures"
+            )
+
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+
+        await all_tasks
+
+    finally:
+        stop_waiter.cancel()
+
+
+def reconcile_results(results: list) -> None:
+    """Any failed/skipped/pending entry whose file exists becomes success."""
+    fixed = 0
+
+    for result in results:
+        if result["status"] not in ("failed", "skipped", "pending"):
+            continue
+
+        if has_file(OUTPUT_DIR / result["filename"]):
+            result.update(status="success", error=None)
+            fixed += 1
+
+    if fixed:
+        logging.info("Reconciled %s entries to success (file exists)", fixed)
+
+
 # ============================================================
 # MAIN
 # ============================================================
@@ -236,6 +380,9 @@ async def main() -> None:
         raise ValueError("feed.json must contain a JSON array")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Convert legacy PNG screenshots to WebP and delete the PNGs.
+    migrate_png_to_webp()
 
     # Generate unique filenames to avoid overwriting duplicate entries.
     filenames = []
@@ -255,7 +402,7 @@ async def main() -> None:
         suffix = 2
 
         while candidate.casefold() in used_names:
-            candidate = f"{stem}-{suffix}.png"
+            candidate = f"{stem}-{suffix}{EXTENSION}"
             suffix += 1
 
         used_names.add(candidate.casefold())
@@ -278,6 +425,7 @@ async def main() -> None:
     logging.info("Total websites: %s", total)
     logging.info("Concurrency: %s", CONCURRENCY)
     logging.info("Skip existing: %s", SKIP_EXISTING)
+    logging.info("Retry rounds: %s", RETRY_ROUNDS)
     logging.info("Wait after navigation: %s seconds", WAIT_AFTER_LOAD_SECONDS)
 
     stop_event = asyncio.Event()
@@ -295,49 +443,48 @@ async def main() -> None:
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
 
-        tasks = [
-            asyncio.create_task(
-                capture(
-                    browser=browser,
-                    semaphore=semaphore,
-                    item=item if isinstance(item, dict) else {},
-                    index=index,
-                    total=total,
-                    filename=filenames[index - 1],
-                    results=results,
-                    lock=lock,
-                    skip_existing=SKIP_EXISTING,
-                )
-            )
-            for index, item in enumerate(feed, start=1)
-        ]
-
-        stop_waiter = asyncio.create_task(stop_event.wait())
-        all_tasks = asyncio.gather(*tasks, return_exceptions=True)
-
         try:
-            done, _ = await asyncio.wait(
-                [all_tasks, stop_waiter],
-                return_when=asyncio.FIRST_COMPLETED,
+            # Pass 1: every website (honours SKIP_EXISTING).
+            await run_batch(
+                browser,
+                list(range(1, total + 1)),
+                feed, filenames, results, lock, semaphore, stop_event,
+                skip_existing=SKIP_EXISTING,
             )
 
-            if stop_waiter in done and stop_event.is_set():
-                logging.warning(
-                    "Stop requested; cancelling unfinished captures"
+            # Retry passes: failed/skipped entries are forced to recapture.
+            for round_number in range(1, RETRY_ROUNDS + 1):
+                if stop_event.is_set():
+                    break
+
+                retry_indices = [
+                    r["index"]
+                    for r in results
+                    if r["status"] in ("failed", "skipped")
+                    and r.get("error") != "Invalid URL"
+                ]
+
+                if not retry_indices:
+                    break
+
+                logging.info(
+                    "Retry round %s/%s: %s websites",
+                    round_number, RETRY_ROUNDS, len(retry_indices),
                 )
 
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
-
-            await all_tasks
+                await run_batch(
+                    browser,
+                    retry_indices,
+                    feed, filenames, results, lock, semaphore, stop_event,
+                    skip_existing=False,
+                )
 
         finally:
-            stop_waiter.cancel()
-
             try:
                 await browser.close()
             finally:
+                # File on disk wins: failed/skipped + file exists -> success.
+                reconcile_results(results)
                 write_manifest(results)
 
     succeeded = sum(r["status"] == "success" for r in results)
