@@ -33,7 +33,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Capture websites
-        run: python gen.py
+        run: python -u gen.py
 
       - name: Prepare website
         run: |
