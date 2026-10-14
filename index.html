@@ -3,110 +3,217 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0d12">
+  <meta name="theme-color" content="#ffffff">
   <title>Website Showcase</title>
   <style>
     :root {
-      color-scheme: dark;
+      color-scheme: light;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system,
         BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0b0d12;
-      color: #f3f4f6;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      --background: #ffffff;
+      --foreground: #09090b;
+      --card: #ffffff;
+      --muted: #f4f4f5;
+      --muted-foreground: #71717a;
+      --border: #e4e4e7;
+      --input: #e4e4e7;
+      --primary: #18181b;
+      --primary-foreground: #fafafa;
+      --ring: #a1a1aa;
+      --radius: 10px;
     }
 
     * { box-sizing: border-box; }
 
+    html { scroll-behavior: smooth; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        radial-gradient(ellipse at top, #171c2a 0, #0b0d12 55%);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+      line-height: 1.5;
     }
 
     a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
 
     .container {
-      width: min(1600px, calc(100% - 40px));
-      margin: auto;
-      padding: 56px 0 72px;
+      width: min(1440px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 48px 0 64px;
     }
 
-    header {
+    .header {
       display: flex;
+      align-items: flex-end;
       justify-content: space-between;
-      align-items: end;
       gap: 24px;
-      margin-bottom: 32px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
     }
 
     .eyebrow {
-      color: #9ca3af;
+      margin: 0 0 8px;
+      color: var(--muted-foreground);
       font-size: 12px;
-      font-weight: 700;
-      letter-spacing: .15em;
+      font-weight: 600;
+      letter-spacing: .08em;
       text-transform: uppercase;
     }
 
     h1 {
-      margin: 10px 0;
-      font-size: clamp(30px, 5vw, 48px);
-      letter-spacing: -.04em;
+      margin: 0;
+      font-size: clamp(28px, 4vw, 36px);
+      font-weight: 700;
+      letter-spacing: -.045em;
+      line-height: 1.15;
     }
 
-    .subtitle { color: #9ca3af; margin: 0; }
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted-foreground);
+      font-size: 14px;
+    }
 
     .count {
+      flex: 0 0 auto;
+      color: var(--muted-foreground);
+      font-size: 13px;
       white-space: nowrap;
-      color: #c4b5fd;
-      font-size: 14px;
     }
 
     .toolbar {
       display: flex;
+      align-items: center;
       gap: 12px;
-      margin-bottom: 24px;
+      padding: 24px 0;
     }
 
-    input {
+    .search-wrap {
+      position: relative;
+      width: min(100%, 420px);
+    }
+
+    .search-icon {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      width: 16px;
+      height: 16px;
+      color: var(--muted-foreground);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    #search {
+      display: block;
       width: 100%;
-      min-width: 0;
-      padding: 13px 16px;
-      color: #f9fafb;
-      background: #151923;
-      border: 1px solid #2b3140;
-      border-radius: 12px;
+      height: 40px;
+      padding: 0 12px 0 38px;
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
       outline: none;
-      font: inherit;
+      background: var(--background);
+      color: var(--foreground);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+      transition: border-color .15s, box-shadow .15s;
     }
 
-    input:focus { border-color: #8b7cf6; }
+    #search::placeholder { color: #a1a1aa; }
 
-    .grid {
+    #search:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px rgb(161 161 170 / 20%);
+    }
+
+    .letter-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0 0 28px;
+    }
+
+    .letter-link {
+      display: inline-flex;
+      min-width: 30px;
+      height: 30px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      font-weight: 600;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+
+    .letter-link:hover,
+    .letter-link:focus-visible {
+      background: var(--muted);
+      border-color: #d4d4d8;
+      color: var(--foreground);
+      outline: none;
+    }
+
+    .letter-link.disabled {
+      opacity: .35;
+      pointer-events: none;
+    }
+
+    .letter-group { margin: 0 0 36px; scroll-margin-top: 24px; }
+
+    .group-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -.025em;
+    }
+
+    .group-count {
+      color: var(--muted-foreground);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+
+    .group-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 24px;
+      gap: 20px;
     }
 
     .card {
       min-width: 0;
       overflow: hidden;
-      background: #12151d;
-      border: 1px solid #282d39;
-      border-radius: 16px;
-      transition: border-color .2s, transform .2s;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      transition: border-color .15s, box-shadow .15s;
     }
 
     .card:hover {
-      border-color: #656080;
-      transform: translateY(-2px);
+      border-color: #d4d4d8;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 4%);
     }
 
     .preview {
-      display: block;
       position: relative;
-      aspect-ratio: 16 / 9;
-      background: #1b202b;
+      display: block;
       overflow: hidden;
+      aspect-ratio: 16 / 9;
+      border-bottom: 1px solid var(--border);
+      background: var(--muted);
     }
 
     .preview img {
@@ -114,117 +221,143 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: top;
+      object-position: top center;
     }
 
     .no-image {
       display: grid;
-      place-items: center;
+      width: 100%;
       height: 100%;
       min-height: 140px;
+      place-items: center;
       padding: 20px;
-      color: #9ca3af;
-      font-size: 14px;
+      color: var(--muted-foreground);
+      font-size: 13px;
       text-align: center;
     }
 
-    .details { padding: 18px; }
+    .details { padding: 16px; }
 
-    .details h2 {
-      margin: 0;
-      font-size: 18px;
+    .details h3 {
       overflow-wrap: anywhere;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -.015em;
     }
 
     .tagline {
-      margin: 8px 0;
-      color: #a5aab7;
-      font-size: 14px;
+      margin: 6px 0 8px;
+      color: var(--muted-foreground);
+      font-size: 13px;
+      overflow-wrap: anywhere;
     }
 
     .url {
       display: block;
-      color: #a5b4fc;
-      font-size: 13px;
       overflow-wrap: anywhere;
+      color: #52525b;
+      font-size: 12px;
     }
+
+    .url:hover { text-decoration: underline; text-underline-offset: 3px; }
 
     .actions {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 12px;
-      margin-top: 18px;
+      margin-top: 16px;
     }
 
     .button {
       display: inline-flex;
+      min-height: 34px;
       align-items: center;
       justify-content: center;
-      padding: 9px 13px;
-      border: 1px solid #373d4d;
-      border-radius: 9px;
-      font-size: 13px;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 12px;
+      font-weight: 500;
+      transition: background .15s;
     }
+
+    .button:hover { background: var(--muted); }
 
     .button.primary {
-      background: #c4b5fd;
-      border-color: #c4b5fd;
-      color: #171324;
-      font-weight: 700;
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--primary-foreground);
     }
 
-    .status { color: #9ca3af; font-size: 12px; }
+    .button.primary:hover { background: #27272a; }
+
+    .status {
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
 
     .empty {
-      grid-column: 1 / -1;
       padding: 48px 20px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      color: var(--muted-foreground);
       text-align: center;
-      color: #9ca3af;
-      border: 1px dashed #373d4d;
-      border-radius: 16px;
     }
 
     footer {
-      margin-top: 32px;
-      color: #717887;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted-foreground);
       font-size: 12px;
       text-align: center;
     }
 
     @media (max-width: 720px) {
-      .container {
-        width: min(100% - 24px, 560px);
-        padding-top: 32px;
-      }
+      .container { width: calc(100% - 28px); padding: 30px 0 44px; }
+      .header { align-items: flex-start; flex-direction: column; gap: 12px; }
+      .toolbar { padding: 20px 0; }
+      .search-wrap { width: 100%; }
+      .group-grid { grid-template-columns: 1fr; gap: 14px; }
+      .letter-nav { gap: 5px; }
+      .letter-link { min-width: 28px; height: 28px; padding: 0 6px; }
+    }
 
-      header { align-items: start; flex-direction: column; }
-      .grid { grid-template-columns: 1fr; gap: 16px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
   <main class="container">
-    <header>
+    <header class="header">
       <div>
-        <div class="eyebrow">Website directory</div>
+        <p class="eyebrow">Website directory</p>
         <h1>Website Showcase</h1>
         <p class="subtitle">A collection of websites and their previews.</p>
       </div>
-      <div id="count" class="count">Loading websites...</div>
+      <div id="count" class="count" aria-live="polite">Loading websites...</div>
     </header>
 
     <div class="toolbar">
-      <input
-        id="search"
-        type="search"
-        placeholder="Search name, tagline or URL..."
-        aria-label="Search websites"
-      >
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-4-4"></path>
+        </svg>
+        <input id="search" type="search" placeholder="Search name, tagline or URL..." aria-label="Search websites" autocomplete="off">
+      </div>
     </div>
 
-    <section id="grid" class="grid" aria-live="polite">
+    <nav id="letter-nav" class="letter-nav" aria-label="Jump to a letter"></nav>
+
+    <section id="grid" aria-live="polite">
       <div class="empty">Loading feed.json...</div>
     </section>
 
@@ -235,6 +368,7 @@
     const grid = document.querySelector("#grid");
     const search = document.querySelector("#search");
     const count = document.querySelector("#count");
+    const letterNav = document.querySelector("#letter-nav");
 
     let websites = [];
     let manifest = [];
@@ -246,93 +380,168 @@
       return el;
     }
 
-    function render() {
-      const query = search.value.trim().toLowerCase();
+    function getGroupKey(name) {
+      const firstChar = [...(name || "").trim()][0] || "";
+      const upperChar = firstChar.toLocaleUpperCase();
+      return /^[A-Z]$/.test(upperChar) ? upperChar : "#";
+    }
 
-      const filtered = websites
-        .map((site, index) => ({ site, index }))
-        .filter(({ site }) => {
-          const text = [
-            site.name, site.tagline, site.url
-          ].join(" ").toLowerCase();
+    function getScreenshotPath(filename) {
+      // Encode each path segment but preserve directory separators.
+      return "screenshot/" + String(filename)
+        .replaceAll("\\", "/")
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+    }
 
-          return text.includes(query);
-        });
+    function createWebsiteCard(site, index) {
+      const result = manifest[index];
+      const card = createElement("article", "card");
+      const preview = createElement("a", "preview");
+      const siteName = site.name || site.url || "website";
 
-      count.textContent =
-        `${filtered.length} website${filtered.length === 1 ? "" : "s"}`;
+      preview.href = site.url || "#";
+      preview.target = "_blank";
+      preview.rel = "noopener noreferrer";
+      preview.setAttribute("aria-label", `Open ${siteName}`);
 
-      grid.replaceChildren();
+      if (result?.status === "success" && result.filename) {
+        const img = document.createElement("img");
+        img.src = getScreenshotPath(result.filename);
+        img.alt = `Screenshot of ${siteName}`;
+        img.loading = "lazy";
+        img.decoding = "async";
 
-      if (!filtered.length) {
-        grid.append(createElement(
-          "div", "empty", "No websites found."
+        img.addEventListener("error", () => {
+          preview.replaceChildren(
+            createElement("div", "no-image", "Screenshot unavailable")
+          );
+          const status = card.querySelector(".status");
+          if (status) status.textContent = "Screenshot file not found";
+        }, { once: true });
+
+        preview.append(img);
+      } else {
+        preview.append(createElement(
+          "div", "no-image",
+          result?.status === "success"
+            ? "Screenshot filename missing"
+            : "Screenshot unavailable"
         ));
-        return;
       }
 
-      for (const { site, index } of filtered) {
-        const card = createElement("article", "card");
-        const result = manifest[index];
-        const preview = createElement("a", "preview");
-        preview.href = site.url || "#";
-        preview.target = "_blank";
-        preview.rel = "noopener noreferrer";
-        preview.setAttribute(
-          "aria-label", `Open ${site.name || site.url || "website"}`
-        );
+      const details = createElement("div", "details");
+      details.append(createElement(
+        "h3", "", site.name || "Untitled website"
+      ));
+      details.append(createElement(
+        "p", "tagline", site.tagline || "No tagline provided"
+      ));
 
-        if (result?.status === "success" && result.filename) {
-          const img = document.createElement("img");
-          img.src = `screenshot/${encodeURIComponent(result.filename)
-            .replaceAll("%2F", "/")}`;
-          img.alt = `Screenshot of ${site.name || site.url || "website"}`;
-          img.loading = "lazy";
-
-          img.addEventListener("error", () => {
-            preview.replaceChildren(
-              createElement("div", "no-image", "Screenshot unavailable")
-            );
-          }, { once: true });
-
-          preview.append(img);
-        } else {
-          preview.append(createElement(
-            "div", "no-image", "Screenshot unavailable"
-          ));
-        }
-
-        const details = createElement("div", "details");
-        details.append(createElement(
-          "h2", "", site.name || "Untitled website"
-        ));
-        details.append(createElement(
-          "p", "tagline", site.tagline || "No tagline provided"
-        ));
-
-        const url = createElement("a", "url", site.url || "");
-        url.href = site.url || "#";
+      if (site.url) {
+        const url = createElement("a", "url", site.url);
+        url.href = site.url;
         url.target = "_blank";
         url.rel = "noopener noreferrer";
         details.append(url);
+      }
 
-        const actions = createElement("div", "actions");
-
+      const actions = createElement("div", "actions");
+      if (site.url) {
         const open = createElement("a", "button primary", "Visit website ↗");
-        open.href = site.url || "#";
+        open.href = site.url;
         open.target = "_blank";
         open.rel = "noopener noreferrer";
         actions.append(open);
+      }
 
-        const statusText = result?.status === "success"
-          ? "Screenshot ready"
-          : "No screenshot";
+      const statusText = result?.status === "success" && result.filename
+        ? "Screenshot ready"
+        : result?.status
+          ? `Screenshot: ${result.status}`
+          : "No screenshot data";
+      actions.append(createElement("span", "status", statusText));
 
-        actions.append(createElement("span", "status", statusText));
-        details.append(actions);
+      details.append(actions);
+      card.append(preview, details);
+      return card;
+    }
 
-        card.append(preview, details);
-        grid.append(card);
+    function renderLetterNav(keys) {
+      letterNav.replaceChildren();
+      for (const key of "ABCDEFGHIJKLMNOPQRSTUVWXYZ#") {
+        const link = createElement("a", "letter-link", key);
+        if (keys.includes(key)) {
+          link.href = `#group-${key}`;
+          link.setAttribute("aria-label", `Jump to ${key}`);
+        } else {
+          link.classList.add("disabled");
+          link.setAttribute("aria-disabled", "true");
+          link.href = "#";
+          link.tabIndex = -1;
+        }
+        letterNav.append(link);
+      }
+    }
+
+    function render() {
+      const query = search.value.trim().toLocaleLowerCase();
+      const filtered = websites
+        .map((site, index) => ({ site, index }))
+        .filter(({ site }) => {
+          const text = [site.name, site.tagline, site.url]
+            .filter(Boolean)
+            .join(" ")
+            .toLocaleLowerCase();
+          return text.includes(query);
+        });
+
+      count.textContent = `${filtered.length} website${filtered.length === 1 ? "" : "s"}`;
+      grid.replaceChildren();
+
+      if (!filtered.length) {
+        letterNav.replaceChildren();
+        grid.append(createElement("div", "empty", "No websites found."));
+        return;
+      }
+
+      const groups = new Map();
+      for (const item of filtered) {
+        const key = getGroupKey(item.site.name);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+
+      const keys = [...groups.keys()].sort((a, b) => {
+        if (a === "#") return 1;
+        if (b === "#") return -1;
+        return a.localeCompare(b);
+      });
+
+      renderLetterNav(keys);
+
+      for (const key of keys) {
+        const items = groups.get(key);
+        const section = createElement("section", "letter-group");
+        section.id = `group-${key}`;
+
+        const heading = createElement("h2", "group-heading");
+        heading.append(
+          document.createTextNode(key),
+          createElement(
+            "span", "group-count",
+            `${items.length} website${items.length === 1 ? "" : "s"}`
+          )
+        );
+
+        const cards = createElement("div", "group-grid");
+        for (const { site, index } of items) {
+          cards.append(createWebsiteCard(site, index));
+        }
+
+        section.append(heading, cards);
+        grid.append(section);
       }
     }
 
@@ -340,26 +549,29 @@
       try {
         const [feedResponse, manifestResponse] = await Promise.all([
           fetch("feed.json"),
-          fetch("screenshot-manifest.json")
+          fetch("screenshot-manifest.json").catch(() => null)
         ]);
 
         if (!feedResponse.ok) {
-          throw new Error("Could not load feed.json");
+          throw new Error(`Could not load feed.json (HTTP ${feedResponse.status})`);
         }
 
         websites = await feedResponse.json();
-
         if (!Array.isArray(websites)) {
           throw new Error("feed.json must contain a JSON array");
         }
 
-        manifest = manifestResponse.ok
-          ? await manifestResponse.json()
-          : [];
+        if (manifestResponse?.ok) {
+          const data = await manifestResponse.json();
+          manifest = Array.isArray(data) ? data : [];
+        } else {
+          manifest = [];
+        }
 
         render();
       } catch (error) {
         count.textContent = "Unable to load";
+        letterNav.replaceChildren();
         grid.replaceChildren(createElement(
           "div", "empty",
           `${error.message}. Serve this directory over HTTP/HTTPS.`
