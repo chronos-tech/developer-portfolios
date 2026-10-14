@@ -2,6 +2,11 @@ name: Generate Screenshots and Deploy Dashboard
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_existing:
+        description: "Skip websites that already have a screenshot (uncheck to recapture everything)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -29,10 +34,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements.txt pillow
           python -m playwright install --with-deps chromium
 
       - name: Capture websites
+        env:
+          SKIP_EXISTING: ${{ inputs.skip_existing }}
         run: python -u gen.py
 
       - name: Prepare website
@@ -70,7 +77,8 @@ jobs:
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add screenshot/ screenshot-manifest.json
+          # -A also stages deleted PNGs
+          git add -A screenshot/ screenshot-manifest.json
 
           if git diff --cached --quiet; then
             echo "No screenshot changes to commit."
