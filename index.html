@@ -90,9 +90,86 @@
     .toolbar {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 12px;
-      padding: 24px 0;
+      padding: 24px 0 16px;
     }
+
+    .toolbar-spacer { flex: 1 1 auto; }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .select {
+      height: 40px;
+      min-width: 112px;
+      padding: 0 32px 0 12px;
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
+      outline: none;
+      background: var(--background);
+      color: var(--foreground);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+    }
+
+    .select:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px rgb(161 161 170 / 20%);
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .pagination[hidden] { display: none; }
+
+    .pagination-info {
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+
+    .pagination-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .page-button {
+      display: inline-flex;
+      min-width: 36px;
+      height: 36px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .page-button:hover:not(:disabled) { background: var(--muted); }
+    .page-button[aria-current="page"] {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+    .page-button:disabled { opacity: .4; cursor: not-allowed; }
+    .page-ellipsis { padding: 0 4px; color: var(--muted-foreground); }
 
     .search-wrap {
       position: relative;
@@ -322,11 +399,14 @@
     @media (max-width: 720px) {
       .container { width: calc(100% - 28px); padding: 30px 0 44px; }
       .header { align-items: flex-start; flex-direction: column; gap: 12px; }
-      .toolbar { padding: 20px 0; }
+      .toolbar { padding: 20px 0 16px; }
       .search-wrap { width: 100%; }
+      .toolbar-spacer { display: none; }
+      .field-label { flex: 1 1 calc(50% - 6px); justify-content: space-between; }
+      .select { min-width: 0; flex: 1; }
       .group-grid { grid-template-columns: 1fr; gap: 14px; }
-      .letter-nav { gap: 5px; }
-      .letter-link { min-width: 28px; height: 28px; padding: 0 6px; }
+      .pagination { align-items: flex-start; flex-direction: column; }
+      .pagination-actions { flex-wrap: wrap; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -353,13 +433,28 @@
         </svg>
         <input id="search" type="search" placeholder="Search name, tagline or URL..." aria-label="Search websites" autocomplete="off">
       </div>
+      <span class="toolbar-spacer"></span>
+      <label class="field-label" for="letter-filter">
+        Starts with
+        <select id="letter-filter" class="select" aria-label="Filter by first letter">
+          <option value="ALL">All</option>
+          <option value="#"># (Numbers / symbols)</option>
+        </select>
+      </label>
+      <label class="field-label" for="page-size">
+        Per page
+        <select id="page-size" class="select" aria-label="Websites per page">
+          <option value="20" selected>20</option>
+          <option value="30">30</option>
+          <option value="40">40</option>
+        </select>
+      </label>
     </div>
-
-    <nav id="letter-nav" class="letter-nav" aria-label="Jump to a letter"></nav>
 
     <section id="grid" aria-live="polite">
       <div class="empty">Loading feed.json...</div>
     </section>
+    <div id="pagination" class="pagination" aria-label="Website pagination" hidden></div>
 
     <footer>Website Showcase · Data loaded from feed.json</footer>
   </main>
@@ -368,10 +463,13 @@
     const grid = document.querySelector("#grid");
     const search = document.querySelector("#search");
     const count = document.querySelector("#count");
-    const letterNav = document.querySelector("#letter-nav");
+    const letterFilter = document.querySelector("#letter-filter");
+    const pageSizeSelect = document.querySelector("#page-size");
+    const pagination = document.querySelector("#pagination");
 
     let websites = [];
     let manifest = [];
+    let currentPage = 1;
 
     function createElement(tag, className, text) {
       const el = document.createElement(tag);
@@ -387,7 +485,6 @@
     }
 
     function getScreenshotPath(filename) {
-      // Encode each path segment but preserve directory separators.
       return "screenshot/" + String(filename)
         .replaceAll("\\", "/")
         .split("/")
@@ -412,32 +509,20 @@
         img.alt = `Screenshot of ${siteName}`;
         img.loading = "lazy";
         img.decoding = "async";
-
         img.addEventListener("error", () => {
-          preview.replaceChildren(
-            createElement("div", "no-image", "Screenshot unavailable")
-          );
+          preview.replaceChildren(createElement("div", "no-image", "Screenshot unavailable"));
           const status = card.querySelector(".status");
           if (status) status.textContent = "Screenshot file not found";
         }, { once: true });
-
         preview.append(img);
       } else {
-        preview.append(createElement(
-          "div", "no-image",
-          result?.status === "success"
-            ? "Screenshot filename missing"
-            : "Screenshot unavailable"
-        ));
+        preview.append(createElement("div", "no-image",
+          result?.status === "success" ? "Screenshot filename missing" : "Screenshot unavailable"));
       }
 
       const details = createElement("div", "details");
-      details.append(createElement(
-        "h3", "", site.name || "Untitled website"
-      ));
-      details.append(createElement(
-        "p", "tagline", site.tagline || "No tagline provided"
-      ));
+      details.append(createElement("h3", "", site.name || "Untitled website"));
+      details.append(createElement("p", "tagline", site.tagline || "No tagline provided"));
 
       if (site.url) {
         const url = createElement("a", "url", site.url);
@@ -458,56 +543,92 @@
 
       const statusText = result?.status === "success" && result.filename
         ? "Screenshot ready"
-        : result?.status
-          ? `Screenshot: ${result.status}`
-          : "No screenshot data";
+        : result?.status ? `Screenshot: ${result.status}` : "No screenshot data";
       actions.append(createElement("span", "status", statusText));
-
       details.append(actions);
       card.append(preview, details);
       return card;
     }
 
-    function renderLetterNav(keys) {
-      letterNav.replaceChildren();
-      for (const key of "ABCDEFGHIJKLMNOPQRSTUVWXYZ#") {
-        const link = createElement("a", "letter-link", key);
-        if (keys.includes(key)) {
-          link.href = `#group-${key}`;
-          link.setAttribute("aria-label", `Jump to ${key}`);
-        } else {
-          link.classList.add("disabled");
-          link.setAttribute("aria-disabled", "true");
-          link.href = "#";
-          link.tabIndex = -1;
+    function renderPagination(totalItems, pageSize, totalPages, start, end) {
+      pagination.replaceChildren();
+      pagination.hidden = totalItems === 0;
+
+      const info = createElement("span", "pagination-info",
+        `Showing ${start + 1}–${end} of ${totalItems} websites`);
+      const actions = createElement("div", "pagination-actions");
+
+      const addButton = (label, page, options = {}) => {
+        const button = createElement("button", "page-button", label);
+        button.type = "button";
+        button.disabled = Boolean(options.disabled);
+        if (options.current) button.setAttribute("aria-current", "page");
+        button.setAttribute("aria-label", options.ariaLabel || `Page ${page}`);
+        button.addEventListener("click", () => {
+          currentPage = page;
+          render();
+          grid.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        actions.append(button);
+      };
+
+      addButton("Previous", Math.max(1, currentPage - 1), {
+        disabled: currentPage <= 1,
+        ariaLabel: "Previous page"
+      });
+
+      // Show a compact range of page numbers around the current page.
+      let pageNumbers = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+      pageNumbers = [...pageNumbers].filter(page => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+      let previousPage = 0;
+      for (const page of pageNumbers) {
+        if (previousPage && page - previousPage > 1) {
+          actions.append(createElement("span", "page-ellipsis", "…"));
         }
-        letterNav.append(link);
+        addButton(String(page), page, { current: page === currentPage });
+        previousPage = page;
       }
+
+      addButton("Next", Math.min(totalPages, currentPage + 1), {
+        disabled: currentPage >= totalPages,
+        ariaLabel: "Next page"
+      });
+
+      pagination.append(info, actions);
     }
 
     function render() {
       const query = search.value.trim().toLocaleLowerCase();
+      const selectedLetter = letterFilter.value;
+      const pageSize = Number(pageSizeSelect.value) || 20;
+
       const filtered = websites
         .map((site, index) => ({ site, index }))
         .filter(({ site }) => {
           const text = [site.name, site.tagline, site.url]
-            .filter(Boolean)
-            .join(" ")
-            .toLocaleLowerCase();
-          return text.includes(query);
+            .filter(Boolean).join(" ").toLocaleLowerCase();
+          const matchesSearch = text.includes(query);
+          const matchesLetter = selectedLetter === "ALL" || getGroupKey(site.name) === selectedLetter;
+          return matchesSearch && matchesLetter;
         });
 
       count.textContent = `${filtered.length} website${filtered.length === 1 ? "" : "s"}`;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+      currentPage = Math.min(currentPage, totalPages);
+      const start = (currentPage - 1) * pageSize;
+      const pageItems = filtered.slice(start, start + pageSize);
       grid.replaceChildren();
 
       if (!filtered.length) {
-        letterNav.replaceChildren();
         grid.append(createElement("div", "empty", "No websites found."));
+        pagination.hidden = true;
+        pagination.replaceChildren();
         return;
       }
 
+      // Group only the current page, keeping the alphabetical sections.
       const groups = new Map();
-      for (const item of filtered) {
+      for (const item of pageItems) {
         const key = getGroupKey(item.site.name);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(item);
@@ -519,29 +640,27 @@
         return a.localeCompare(b);
       });
 
-      renderLetterNav(keys);
-
       for (const key of keys) {
         const items = groups.get(key);
         const section = createElement("section", "letter-group");
         section.id = `group-${key}`;
-
         const heading = createElement("h2", "group-heading");
-        heading.append(
-          document.createTextNode(key),
-          createElement(
-            "span", "group-count",
-            `${items.length} website${items.length === 1 ? "" : "s"}`
-          )
-        );
-
+        heading.append(document.createTextNode(key), createElement(
+          "span", "group-count", `${items.length} website${items.length === 1 ? "" : "s"}`));
         const cards = createElement("div", "group-grid");
-        for (const { site, index } of items) {
-          cards.append(createWebsiteCard(site, index));
-        }
-
+        for (const { site, index } of items) cards.append(createWebsiteCard(site, index));
         section.append(heading, cards);
         grid.append(section);
+      }
+
+      renderPagination(filtered.length, pageSize, totalPages, start, Math.min(start + pageSize, filtered.length));
+    }
+
+    function populateLetterFilter() {
+      for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+        const option = createElement("option", "", letter);
+        option.value = letter;
+        letterFilter.append(option);
       }
     }
 
@@ -568,6 +687,7 @@
           manifest = [];
         }
 
+        populateLetterFilter();
         render();
       } catch (error) {
         count.textContent = "Unable to load";
@@ -579,7 +699,18 @@
       }
     }
 
-    search.addEventListener("input", render);
+    search.addEventListener("input", () => {
+      currentPage = 1;
+      render();
+    });
+    letterFilter.addEventListener("change", () => {
+      currentPage = 1;
+      render();
+    });
+    pageSizeSelect.addEventListener("change", () => {
+      currentPage = 1;
+      render();
+    });
     init();
   </script>
 </body>
